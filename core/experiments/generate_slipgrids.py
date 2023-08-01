@@ -1,3 +1,4 @@
+#%%
 import numpy as np
 import json
 import stormpy
@@ -469,7 +470,9 @@ def generate_pmc_learning_drn(ROOT_DIR, N, terrain, model_name,
            'west':  (0, -1),
            'north':  (-1, 0)
             }
-    
+    statespace = ['x-coordinate y-coordinate state_id terrain_type']
+
+
     Q = ['// Exported by generate_slipgrid_pmc.py',
          '// Original model type: DTMC',
          '@type: DTMC',
@@ -509,6 +512,8 @@ def generate_pmc_learning_drn(ROOT_DIR, N, terrain, model_name,
                 elif s > s_package:
                     s -= 1
                 
+                statespace += ['{} {} {} {}'.format(x, y, s, ter)]
+
                 Q += ['state {} [0] {}'.format(s, label)]
                     
                 Q += ['\taction 0 [{}]'.format(0 if label == 'goal' else reward)]
@@ -662,11 +667,18 @@ def generate_pmc_learning_drn(ROOT_DIR, N, terrain, model_name,
                     
                     
     drn_path   = str(Path(ROOT_DIR, str(model_name)+'.drn'))
+    drn_path_statespace = str(Path(ROOT_DIR, str(model_name)+'_statespace'+'.txt'))
     
     # Export to PRISM file
-    with open(r'{}'.format(drn_path), 'w') as fp:
+    with open(r'{}'.format(drn_path), 'w+') as fp:
         fp.write('\n'.join(Q))
         
     print('Exported model directly to DRN with name "{}"'.format(model_name))
     
+    # Export file om van (x,y) naar state_id / ondergrond te gaan en viceversa
+    with open(r'{}'.format(drn_path_statespace), 'w+') as fp:
+        fp.write('\n'.join(statespace))
+
     return drn_path
+
+# %%
