@@ -68,6 +68,7 @@ DFs = {}
 DFs_stats = {}
 
 modes = ['derivative','expVisits_sampling','expVisits','samples','random']
+modes = ['exploration'] #Useful if we only want to test the implementation of one of the modes. exploration is the new one
 
 for mode in modes:
     
@@ -104,7 +105,7 @@ for mode in modes:
 
         pmc.reward = pmc_get_reward(pmc, instantiated_model, args)
         
-        # Define learner object
+        # Define learner object 
         L = learner(pmc, inst, args.learning_samples_per_step, seed, args, mode)
         
         for i in range(args.learning_steps):
@@ -117,10 +118,10 @@ for mode in modes:
             PAR = L.sample_method(L)
             
             # Get additional samples
-            L.sample(PAR, inst_true['valuation'])
+            L.sample(PAR, inst_true['valuation'], mode)
             
             # Update learnined object
-            L.update(PAR)
+            L.update(PAR, mode)
             
         DFs[mode] = pd.concat([DFs[mode], pd.Series(L.solution_list)], axis=1)
         
