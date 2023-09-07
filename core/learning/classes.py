@@ -36,14 +36,12 @@ class learner:
         # Define prMC
         self.prmc = pmc2prmc(self.pmc.model, self.pmc.parameters, self.pmc.scheduler_prob, self.inst['point'], self.inst['sample_size'], self.args, verbose = self.args.verbose)
         
-        print("INITIAL STATES:", self.prmc.initial_states)
-        assert 1==2
 
         #Zelf toegevoegd:
         self.max_exploration_steps = 20 #Variable to set the max length of exploratory mdp, could be variable in the class instead
         self.statespace_fp = '/Users/Mees_1/prmc-sensitivity/models/slipgrid_learning/model_mees_more_terrains_statespace.txt' # Dit nog aanpassen per run. Misschien als extra argument toevoegen aan de class.
         self.state_dict, self.terrain_dict, self.transition_matrix = make_exploration_utils(self.statespace_fp, self.max_exploration_steps) 
-        self.current_state = self.state_dict[(0,0)] # The drone starts in the initial state. This will be updated throughout sample collection
+        self.current_state = self.state_dict[(0,0)] # The drone starts in the initial state. This will be updated throughout sample collection. What is the best initial state? Is it given somewhere? 
 
         self.CVX = verify_prmc(self.prmc, self.pmc.reward, self.args.beta_penalty, self.args.robust_bound, verbose = self.args.verbose)
         self.CVX.cvx.tune()
@@ -97,7 +95,7 @@ class learner:
     def solve_step(self):
         
         start_time = time.time()
-        self.CVX.solve(store_initial = True, verbose=False)
+        self.CVX.solve(store_initial = True, verbose=self.args.verbose)
         print('Solver time:', time.time() - start_time)
         
         self.solution_current = self.CVX.x_tilde[self.prmc.sI['s']] @ self.prmc.sI['p']
