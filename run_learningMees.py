@@ -68,6 +68,7 @@ DFs = {}
 DFs_stats = {}
 
 modes = ['derivative','expVisits_sampling','expVisits','samples','random']
+modes = ['derivative']
 
 for mode in modes:
     

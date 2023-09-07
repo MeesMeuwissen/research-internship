@@ -251,6 +251,8 @@ def generate_pmc_random_drn(ROOT_DIR, N, terrain, model_name,
            'north':  (-1, 0)
             }
     
+    statespace = ['Shape of grid: {} {}'.format(X, Y)] # Moet dit andersom? 
+
     Q = ['// Exported by generate_slipgrid_pmc.py',
          '// Original model type: DTMC',
          '@type: DTMC',
@@ -286,6 +288,8 @@ def generate_pmc_random_drn(ROOT_DIR, N, terrain, model_name,
                     continue
                 elif s > s_package:
                     s -= 1
+
+                statespace += ['{} {} {} {}'.format(x, y, s, ter)]
                 
                 Q += ['state {} [0] {}'.format(s, label)]
                     
@@ -440,12 +444,17 @@ def generate_pmc_random_drn(ROOT_DIR, N, terrain, model_name,
                     
                     
     drn_path   = str(Path(ROOT_DIR, str(model_name)+'.drn'))
+    drn_path_statespace = str(Path(ROOT_DIR, str(model_name)+'_statespace'+'.txt'))
     
     # Export to PRISM file
     with open(r'{}'.format(drn_path), 'w') as fp:
         fp.write('\n'.join(Q))
         
     print('Exported model directly to DRN with name "{}"'.format(model_name))
+
+    # Export file om van (x,y) naar state_id / ondergrond te gaan en viceversa
+    with open(r'{}'.format(drn_path_statespace), 'w+') as fp:
+        fp.write('\n'.join(statespace))
     
     return drn_path
 
@@ -459,7 +468,7 @@ def generate_pmc_learning_drn(ROOT_DIR, N, terrain, model_name,
     '''    
     
     print('')
-    
+
     # Determine size of the grid
     (Y,X) = terrain.shape  
     (x_init, y_init) = (0,0)
@@ -470,7 +479,7 @@ def generate_pmc_learning_drn(ROOT_DIR, N, terrain, model_name,
            'west':  (0, -1),
            'north':  (-1, 0)
             }
-    statespace = ['x-coordinate y-coordinate state_id terrain_type']
+    statespace = ['Shape of grid: {} {}'.format(X, Y)] # Moet dit andersom? 
 
 
     Q = ['// Exported by generate_slipgrid_pmc.py',
