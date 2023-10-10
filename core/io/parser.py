@@ -121,6 +121,12 @@ def parse_main(manualModel=None, learning=False):
         parser.add_argument('--default_sample_size', type=int, action="store", dest='default_sample_size', 
                             default=100, help="Default number of samples for each parameter to start with (unless a parameter file is given)")
         
+        # Path to the statespace file
+        parser.add_argument('--statespace', type=str, action="store", dest='statespace', 
+                            default='models/slipgrid_learning/model_mees_more_terrains_statespace.txt', help="Path to the statespace file")
+        # Number of steps taken by the exploring agent per iteration
+        parser.add_argument('--exploration_steps', type=int, action="store", dest='exploration_steps', 
+                            default=50, help="Number of steps taken by the exploring agent per iteration")
     
     # Now, parse the command line arguments and store the
     # values in the `args` variable

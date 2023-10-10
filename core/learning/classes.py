@@ -38,8 +38,8 @@ class learner:
         
 
         #Zelf toegevoegd:
-        self.max_exploration_steps = 20 #Variable to set the max length of exploratory mdp, could be variable in the class instead
-        self.statespace_fp = '/Users/Mees_1/prmc-sensitivity/models/slipgrid_learning/model_mees_more_terrains_statespace.txt' # Dit nog aanpassen per run. Misschien als extra argument toevoegen aan de class.
+        self.max_exploration_steps = self.args.exploration_steps # Variable to set the max length of exploratory mdp, set by --exploration_steps
+        self.statespace_fp = self.args.statespace # path to the statespace file, set by --statespace
         self.state_dict, self.terrain_dict, self.transition_matrix = make_exploration_utils(self.statespace_fp, self.max_exploration_steps) 
         self.current_state = self.state_dict[(0,0)] # The drone starts in the initial state. This will be updated throughout sample collection. What is the best initial state? Is it given somewhere? 
 
@@ -116,6 +116,7 @@ class learner:
         if mode == "exploration":
             # params will have a different shape in this case, hence the different code.
             for q,var in enumerate(params):
+                #Here, var is a tuple var = (variable, #samples to be drawn)
             
                 if type(true_valuation) == dict:
                     true_prob = true_valuation[var[0].name]
@@ -314,15 +315,10 @@ def sample_derivative(L):
     return PAR
     
 def sample_exploration(L):
-    # Dit is waar de Exploration MDP gebruikt moet worden om de juiste variabeles te returnen 
+    """
+    Sample based on the optimal path through the exploration mdp
+    """
 
-    #Stappen: Bij de __init__ een functie callen die de exploration MDP bouwt. Hier de transition rewards berekenen door GRB te doen. De reward voor een transition hangt af van de afgeleide van de parameter van de ondergrond waar je terecht komt. 
-
-    # DAN: Maak je reward model met die net gemaakte transition matrix. Laat dat MDP-probleem oplossen door stormpy. Die geeft een scheduler. 
-
-    # Dan: Run door je mdp met die specifieke scheduler, bijhoudend welke parameters gesampled worden. Die lijst van parameters wordt gereturned.
-
-    # Example van PAR: [<Variable v73 [id = 46]>]
     print("Sample based on solution to the exploration mdp")
 
     # Create object for computing gradients
@@ -476,13 +472,13 @@ def make_exploration_utils(statespace_file_path, max_exploration_steps):
     # De eerste regel bevat de dimensies van de grid, spatie ertussen: X Y
 
     f = open(r'{}'.format(statespace_file_path), 'r')
-    firstline = f.readline() #Lees de eerste regel met info over dimensies
+    firstline = f.readline() #Read the first line containing the grid dimensions
     X = int(firstline.split(" ")[-2])
-    Y = int(firstline.split(" ")[-1]) # De dimensies van de grid. 
+    Y = int(firstline.split(" ")[-1]) # The dimensions of the grid
 
     print("The dimensions of the grid: {} by {}".format(X,Y))
 
-    lines = f.readlines() #Misschien niet handig als het heel veel lines zijn. 
+    lines = f.readlines() 
 
     state_dict = {}
     terrain_dict = {}
