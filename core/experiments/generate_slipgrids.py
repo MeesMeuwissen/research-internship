@@ -459,9 +459,8 @@ def generate_pmc_random_drn(ROOT_DIR, N, terrain, model_name,
     return drn_path
 
 
-
 def generate_pmc_learning_drn(ROOT_DIR, N, terrain, model_name,
-                              loc_package, loc_warehouse, reward, slipmode='fix'):
+                              loc_package, loc_warehouse, reward, slipmode='double'):
     
     '''
     Generate a pMC for the learning experiment and export to DRN file.

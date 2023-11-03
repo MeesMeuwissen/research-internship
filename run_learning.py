@@ -70,75 +70,85 @@ DFs_stats = {}
 modes = ['derivative','expVisits_sampling','expVisits','samples','random']
 modes = ['exploration'] #Useful if we only want to test the implementation of one of the modes. exploration is the new one
 
-for mode in modes:
-    
-    DFs[mode] = pd.DataFrame()
-    
-    for q, seed in enumerate(np.arange(args.learning_iterations)):
-        print('>>> Start iteration {} <<<'.format(seed))
-        
-        if param_path:
-            inst = pmc_load_instantiation(pmc, param_path, args.default_valuation)
-            
-        else:
-            inst = {'valuation': {}, 'sample_size': {}}
-            
-            # Set seed
-            np.random.seed(0)
-            
-            # Create parameter valuations on the spot
-            for v in pmc.parameters:
-                
-                # Sample MLE value
-                p = inst_true['valuation'][v.name]
-                N = args.default_sample_size
-                delta = 1e-4
-                MLE = np.random.binomial(N, p) / N
-                
-                # Store
-                inst['valuation'][v.name] = max(min(MLE , 1-delta), delta)
-                inst['sample_size'][v.name] = args.default_sample_size
-        
-        # Define instantiated pMC based on parameter 
-        instantiated_model, inst['point'] = pmc_instantiate(pmc, inst['valuation'], T)
-        assert_probabilities(instantiated_model)
+for mod in modes:
 
-        pmc.reward = pmc_get_reward(pmc, instantiated_model, args)
+    for max_expl_steps in [30,50, 100, 200]:
+
+        #Set the --exploration_steps argument correctly:
+        args.exploration_steps = max_expl_steps
         
-        # Define learner object 
-        L = learner(pmc, inst, args.learning_samples_per_step, seed, args, mode)
-        
-        for i in range(args.learning_steps):
-            print('----------------\nMethod {}, Iteration {}, Step {}\n----------------'.format(mode, q, i))
-            
-            # Compute robust solution for current step
-            L.solve_step()
-            
-            # Determine for which parameter to obtain additional samples
-            PAR = L.sample_method(L)
-            
-            # Get additional samples
-            L.sample(PAR, inst_true['valuation'], mode)
-            
-            # Update learnined object
-            L.update(PAR, mode)
-            
-        DFs[mode] = pd.concat([DFs[mode], pd.Series(L.solution_list)], axis=1)
-        
-    current_time = datetime.now().strftime("%H:%M:%S")
-    print('\nprMC code ended at {}\n'.format(current_time))
-    print('=============================================')
+        #Set the correct string for the plots
+        mode = "exploration" + str(max_expl_steps)
     
-    dt = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
-    # If desired, export the detailed results for each of the different
-    # sampling methods
-    # DFs[mode].to_csv('output/learning_{}_{}.csv'.format(dt,mode), sep=';')    
+        DFs[mode] = pd.DataFrame()
         
-    DFs_stats[mode] = pd.DataFrame({
-        '{}_mean'.format(mode): DFs[mode].mean(axis=1),
-        '{}_min'.format(mode): DFs[mode].min(axis=1),
-        '{}_max'.format(mode): DFs[mode].max(axis=1)
-        })
+        for q, seed in enumerate(np.arange(args.learning_iterations)):
+            print('>>> Start iteration {} <<<'.format(seed))
+            
+            if param_path:
+                inst = pmc_load_instantiation(pmc, param_path, args.default_valuation)
+                
+            else:
+                inst = {'valuation': {}, 'sample_size': {}}
+                
+                # Set seed
+                np.random.seed(0)
+                
+                # Create parameter valuations on the spot
+                for v in pmc.parameters:
+                    
+                    # Sample MLE value
+                    p = inst_true['valuation'][v.name]
+                    N = args.default_sample_size
+                    delta = 1e-4
+                    MLE = np.random.binomial(N, p) / N
+                    
+                    # Store
+                    inst['valuation'][v.name] = max(min(MLE , 1-delta), delta)
+                    inst['sample_size'][v.name] = args.default_sample_size
+            
+            # Define instantiated pMC based on parameter 
+            instantiated_model, inst['point'] = pmc_instantiate(pmc, inst['valuation'], T)
+            assert_probabilities(instantiated_model)
+
+            pmc.reward = pmc_get_reward(pmc, instantiated_model, args)
+            
+            # Define learner object 
+            L = learner(pmc, inst, args.learning_samples_per_step, seed, args, 'exploration') #Always exploration
+            samples_collected = 0
+            
+            for i in range(args.learning_steps):
+                print('----------------\nMethod {}, Iteration {}, Step {}\n----------------'.format(mode, q, i))
+                
+                # Compute robust solution for current step
+                L.solve_step()
+                
+                # Determine for which parameter to obtain additional samples
+                PAR = L.sample_method(L)
+                
+                # Get additional samples
+                L.sample(PAR, inst_true['valuation'], 'exploration') #always exploration
+                samples_collected += args.learning_samples_per_step * args.exploration_steps
+
+                # Update learnined object
+                L.update(PAR, 'exploration') #always exploration
+                
+            DFs[mode] = pd.concat([DFs[mode], pd.Series(L.solution_list)], axis=1)
+            
+        current_time = datetime.now().strftime("%H:%M:%S")
+        print('\nprMC code ended at {}\n'.format(current_time))
+        print('=============================================')
+        
+        dt = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
+        # If desired, export the detailed results for each of the different
+        # sampling methods
+        # DFs[mode].to_csv('output/learning_{}_{}.csv'.format(dt,mode), sep=';')    
+            
+        DFs_stats[mode] = pd.DataFrame({
+            '{}_mean'.format(mode): DFs[mode].mean(axis=1),
+            '{}_min'.format(mode): DFs[mode].min(axis=1),
+            '{}_max'.format(mode): DFs[mode].max(axis=1)
+            })
         
 # %%
     

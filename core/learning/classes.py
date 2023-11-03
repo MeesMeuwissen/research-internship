@@ -37,7 +37,7 @@ class learner:
         self.prmc = pmc2prmc(self.pmc.model, self.pmc.parameters, self.pmc.scheduler_prob, self.inst['point'], self.inst['sample_size'], self.args, verbose = self.args.verbose)
         
 
-        #Zelf toegevoegd:
+        # Define useful tools
         self.max_exploration_steps = self.args.exploration_steps # Variable to set the max length of exploratory mdp, set by --exploration_steps
         self.statespace_fp = self.args.statespace # path to the statespace file, set by --statespace
         self.state_dict, self.terrain_dict, self.transition_matrix = make_exploration_utils(self.statespace_fp, self.max_exploration_steps) 
@@ -64,7 +64,7 @@ class learner:
             try:
                 self.CVX_opp.cvx.getTuneResult(0)
             except:
-                print('Ecception: could not set tuning results')
+                print('Exception: could not set tuning results')
         
         
     def _set_sampler(self, mode):
@@ -86,6 +86,9 @@ class learner:
             self.opposite = False
         elif mode == 'exploration':
             self.sample_method = sample_exploration
+            self.opposite = False
+        elif mode == 'exploration_random_policy':
+            self.sample_method = sample_exploration_random_policy
             self.opposite = False
         else:
             print('ERROR: unknown mode')
@@ -113,7 +116,7 @@ class learner:
         
         
     def sample(self, params, true_valuation, mode):
-        if mode == "exploration":
+        if mode == "exploration" or mode == 'exploration_random_policy':
             # params will have a different shape in this case, hence the different code.
             for q,var in enumerate(params):
                 #Here, var is a tuple var = (variable, #samples to be drawn)
@@ -161,7 +164,7 @@ class learner:
         ##### UPDATE PARAMETER POINT
         _, self.inst['point'] = pmc_instantiate(self.pmc, self.inst['valuation'])
         
-        if mode == "exploration": 
+        if mode == "exploration" or mode == 'exploration_random_policy': 
             if self.UPDATE:
             
                 for var in params:
@@ -342,18 +345,19 @@ def sample_exploration(L):
     derivatives = {}
     
     for i in range(len(idx)):   
-        derivatives[idx[i]] = obj[i]
-
+        derivatives[int(str(L.prmc.paramIndex[i])[1:])] = obj[i] 
+        # In order to get derivatives in the right format, convert a parameter (e.g. v61) to a string, remove the v, then convert into integer.
     
     if not L.args.no_gradient_validation:  
         L.validate_derivatives(obj)
 
-    transition_reward_matrix = make_reward_matrix(derivatives, L.state_dict, L.terrain_dict, L.max_exploration_steps)
-    PAR = [L.prmc.paramIndex[1]]
+    transition_reward_matrix = make_reward_matrix(derivatives, L.state_dict, L.terrain_dict, L.max_exploration_steps, L)
+
 
     #define the reward model
     reward_models = {}
     reward_models['transition rewards'] = stormpy.SparseRewardModel(optional_transition_reward_matrix=transition_reward_matrix)
+
 
     # State labeling is required, every state has a label
     state_labeling = stormpy.storage.StateLabeling(len(L.state_dict) * (L.max_exploration_steps + 1))
@@ -409,8 +413,92 @@ def sample_exploration(L):
     parameters_to_sample = [(par, parameters_to_sample.count(par) * L.SAMPLES_PER_STEP) for par in set(parameters_to_sample)]
     return parameters_to_sample
 
+def sample_exploration_random_policy(L):
+    """
+    Sample the exploration MPD using a random policy
+    """
 
-def make_reward_matrix(derivatives, state_dict, terrain_dict, max_exploration_steps):
+    print("Sample by randomly moving through the exploration mdp")
+
+    # Create object for computing gradients
+    G = gradient(L.prmc, L.args.robust_bound)
+    
+    # Update gradient object with current solution
+    G.update_LHS(L.prmc, L.CVX)
+    G.update_RHS(L.prmc, L.CVX)
+
+    # Check if matrix has correct size
+    assert G.J.shape[0] == G.J.shape[1]
+    
+    if L.args.robust_bound == 'lower':
+        direction = GRB.MAXIMIZE
+    else:
+        direction = GRB.MINIMIZE
+
+    _, idx, obj = solve_cvx_gurobi(G.J, G.Ju, L.prmc.sI, len(L.prmc.parameters),
+                                direction=direction, verbose=L.args.verbose) # The model has len(L.prmc.parameters) parameters. This finds the derivative of all of them. 
+
+    derivatives = {}
+    
+    for i in range(len(idx)):   
+        derivatives[int(str(L.prmc.paramIndex[i])[1:])] = obj[i] 
+
+
+    if not L.args.no_gradient_validation:  
+        L.validate_derivatives(obj)
+
+    transition_reward_matrix = make_reward_matrix(derivatives, L.state_dict, L.terrain_dict, L.max_exploration_steps, L)
+
+    #define the reward model
+        # reward_models = {}
+        # reward_models['transition rewards'] = stormpy.SparseRewardModel(optional_transition_reward_matrix=transition_reward_matrix)
+
+    # State labeling is required, every state has a label
+    state_labeling = stormpy.storage.StateLabeling(len(L.state_dict) * (L.max_exploration_steps + 1))
+    
+    # Add a label for every terrain in the dictionary
+    labels = {str(x) for x in L.terrain_dict.values()}
+    for label in labels:
+        state_labeling.add_label(label)
+    
+    #Add initial state
+    state_labeling.add_label('init')
+    state_labeling.add_label_to_state('init', L.state_dict[(0,0)]) #Initial state = (0,0)
+    #Loop over every (x,y) per layer, add the correct terrain label to the correct state.
+    for layer in range(L.max_exploration_steps + 1): 
+        for (x,y) in L.state_dict.keys(): 
+            state_labeling.add_label_to_state(str(L.terrain_dict[(x,y)]), L.state_dict[(x,y)] + (layer) * len(L.state_dict))
+
+
+    #Collect components and build the mdp
+    components = stormpy.SparseModelComponents(transition_matrix=L.transition_matrix, state_labeling=state_labeling, rate_transitions=False)
+    mdp = stormpy.storage.SparseMdp(components)
+
+    # We move randomly through the exploration mdp
+
+    current_state = L.current_state
+    parameters_to_sample = []
+    simulator = stormpy.simulator.create_simulator(mdp)
+
+    for _ in range(L.max_exploration_steps):
+       
+        # Randomly pick one of the available actions
+        actions = simulator.available_actions()
+        action = random.randint(0,len(actions)-1) 
+        
+        new_state, _, labels = simulator.step(action)
+        # Extract the parameter from the label and add it to the list
+        parameters_to_sample.append(L.prmc.paramIndex[int(list(labels)[0])])  #This only works if all the states only have a single label! But we build the mdp ourselves so should be manageable.
+        current_state = new_state
+
+    # Ensure the next step continues where we left off
+    L.current_state = current_state
+
+    # Count occurrences of parameters along the optimal path
+    parameters_to_sample = [(par, parameters_to_sample.count(par) * L.SAMPLES_PER_STEP) for par in set(parameters_to_sample)]
+    return parameters_to_sample
+
+def make_reward_matrix(derivatives, state_dict, terrain_dict, max_exploration_steps, L):
     # This matrix will be very similar to the transition matrix used to build the mdp. The difference is that in this case, the values in the matrix will not be transition probabilities but transition rewards instead.
     state_dict_keys = state_dict.keys()
     row_counter = 0
@@ -423,27 +511,27 @@ def make_reward_matrix(derivatives, state_dict, terrain_dict, max_exploration_st
             
             #idle in place
             builder.new_row_group(row_counter)
-            builder.add_next_value(row_counter, value + (layer + 1) * len(state_dict), -1 * derivatives[terrain_dict[(x,y)]]) 
+            builder.add_next_value(row_counter, value + (layer + 1) * len(state_dict), -1 * derivatives[int(str(L.prmc.paramIndex[terrain_dict[(x,y)]])[1:])]) 
             row_counter += 1
 
             # step to the left:
             if (x-1,y) in state_dict_keys:
-                builder.add_next_value(row_counter, state_dict[(x-1, y)] + (layer + 1) * len(state_dict), -1 * derivatives[terrain_dict[(x-1,y)]])
+                builder.add_next_value(row_counter, state_dict[(x-1, y)] + (layer + 1) * len(state_dict), -1 * derivatives[int(str(L.prmc.paramIndex[terrain_dict[(x-1,y)]])[1:])])
                 row_counter += 1 
-            
+
             # step to the right:
             if (x+1,y) in state_dict_keys:
-                builder.add_next_value(row_counter, state_dict[(x+1, y)] + (layer + 1) * len(state_dict), -1 * derivatives[terrain_dict[(x+1,y)]]) 
+                builder.add_next_value(row_counter, state_dict[(x+1, y)] + (layer + 1) * len(state_dict), -1 * derivatives[int(str(L.prmc.paramIndex[terrain_dict[(x+1,y)]])[1:])]) 
                 row_counter += 1 # increment row_counter since we have added a row. 
 
             # step up:
             if (x,y-1) in state_dict_keys:
-                builder.add_next_value(row_counter, state_dict[(x, y-1)] + (layer + 1) * len(state_dict), -1 * derivatives[terrain_dict[(x,y-1)]])
+                builder.add_next_value(row_counter, state_dict[(x, y-1)] + (layer + 1) * len(state_dict), -1 * derivatives[int(str(L.prmc.paramIndex[terrain_dict[(x,y-1)]])[1:])])
                 row_counter += 1
             
             # step down:
             if (x,y+1) in state_dict_keys:
-                builder.add_next_value(row_counter, state_dict[(x, y+1)] + (layer + 1) * len(state_dict), -1 * derivatives[terrain_dict[(x,y+1)]])
+                builder.add_next_value(row_counter, state_dict[(x, y+1)] + (layer + 1) * len(state_dict), -1 * derivatives[int(str(L.prmc.paramIndex[terrain_dict[(x,y+1)]])[1:])])
                 row_counter += 1
 
             # Make sure all final state transitions yield no reward: 

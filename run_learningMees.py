@@ -72,10 +72,9 @@ DFs_stats = {}
 
 modes = ['derivative','expVisits_sampling','expVisits','samples','random']
 modes = ['exploration'] #Useful if we only want to test the implementation of one of the modes. exploration is the new one
-max_exploration_steps_list = [30,50,100, 200]
-max_samples = 1000
+max_exploration_steps_list = [20,30,50,100, 200]
+max_samples = 2000 # amount of times the drone samples. Multiply by learning_samples_per_step to obtain total maximum samples
 
-checker = []
 
 DF_time = pd.DataFrame(columns= ['exploration' + str(i) for i in max_exploration_steps_list])
 
@@ -87,7 +86,6 @@ for mod in modes:
         args.learning_steps = int(max_samples / max_expl_steps)
         print("LEARNING ITERATIONS:", args.learning_steps)
 
-        checker.append("{} learning steps for value {}".format(args.learning_steps, max_expl_steps))
         #Set the correct string for the plots
         mode = "exploration" + str(max_expl_steps)
     
@@ -178,39 +176,55 @@ dt = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
 DF_stats = pd.concat(list(DFs_stats.values()), axis=1)
 
 df_merged = pd.concat([df.mean(axis=1) for df in DFs.values()], axis=1)
+df_merged_max = pd.concat([df.max(axis=1) for df in DFs.values()], axis=1)
+df_merged_min = pd.concat([df.min(axis=1) for df in DFs.values()], axis=1)
+
 df_merged.columns = list(DFs.keys())
-#print(df_merged.loc[0])
+df_merged_max.columns = list(DFs.keys())
+df_merged_min.columns = list(DFs.keys())
 
 #For fairness, compare each run based on samples collected instead of iterations done.
 # learning_steps = int(max_samples / value)
 
+plt.rcParams.update({'font.size': 22})
 
 for value in max_exploration_steps_list:
     
     learning_steps = int(max_samples / value) + 1
     #this is amount of times a value was added to L.solution_list, so amount of times the sol was calculated. Every calculation took place after collecting value * args.learning_samples_per_step samples. 1 is added to account for the extra solution calculation after all samples were collected.
 
-    plt.plot(args.learning_samples_per_step * np.array(range(0, value*learning_steps, value)), [x for x in DF_stats['exploration' + str(value) + '_mean'].to_list() if str(x) != 'nan'], label = str(value)) 
+    plt.plot(args.learning_samples_per_step * np.array(range(0, value*learning_steps, value)), [x for x in DF_stats['exploration' + str(value) + '_mean'].to_list() if str(x) != 'nan'], ':', label = str(value)) 
+
+    #Above line plots the amount of samples collected (per learning iteration, value * learning*steps * samples_per_step samples are collected) against this: Every learning iteration the model outputs multiple approximations of the true value, at different points in the iteration. These values are collected, and the means of them are calculated and plotted. 
 
 
-    #Above line plots the amount of samples collected (per learning iteration, value * learning*steps * samples_per_step samples are collected) against this: Every learning iteration the model outputs multiple approximations of the true value, at different points in the iteration. These values are collected, and the means of them are calculated and plotted.
-
-
-    #plt.plot(np.array(range(0, len(df_merged['exploration' + str(value)])*value, value)), DF_stats['exploration' + str(value) + '_mean'].to_list())
+    plt.fill_between(args.learning_samples_per_step * np.array(range(0, value*learning_steps, value)), list(filter(pd.notna, df_merged_min["exploration" + str(value)].values)), list(filter(pd.notna,  df_merged_max["exploration" + str(value)])), alpha = 0.2)
+    #Above plots shaded areas between min/max over learning iterations
+    
 
 #df_merged.plot()
 
 plt.axhline(y=solution_true, color='gray', linestyle='--')
 
+ax = plt.gca()
+ax.set_ylim([0, None])
+
 #Set visuals
 plt.legend()
-plt.title("Solution versus samples collected")
+plt.xlabel("Total samples collected")
+plt.ylabel("Robust solution")
+
+d = {   'color': 'black',
+        'family': 'Times New Roman'
+    }
+plt.text(solution_true + 10, solution_true + 10 , "True solution", fontdict = d)
+#plt.title("Solution versus samples collected") #
 
 DF_stats.to_csv('output/learning_{}_{}.csv'.format(args.instance, dt), sep=';') 
 
-plt.savefig('output/learning_{}_{}.png'.format(args.instance, dt))
-plt.savefig('output/learning_{}_{}.pdf'.format(args.instance, dt))
+#plt.savefig('output/{}_samples_{}.png'.format(args.learning_samples_per_step * max_samples, dt), bbox_inches='tight')
+plt.savefig('output/{}_samples_{}.pdf'.format(args.learning_samples_per_step * max_samples, dt), bbox_inches='tight')
 
 print('Data exported and plot saved.')
-print(checker)
 print(DF_time) #any 1 entry is a single learing iteration 
+
