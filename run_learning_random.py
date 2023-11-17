@@ -15,6 +15,13 @@ import os
 import numpy as np
 import pandas as pd
 
+
+'''
+This file is used to compare sampling according to the exploration MDP with randoml movement.
+
+'''
+
+
 # Parse arguments
 args = parse_main(learning = True)
 args.no_gradient_validation = True
@@ -71,26 +78,33 @@ DFs = {}
 DFs_stats = {}
 
 modes = ['derivative','expVisits_sampling','expVisits','samples','random', 'exploration_random_policy']
-modes = ['exploration', 'exploration_random_policy'] #Compare the two methods
+modes = ['exploration20', 'exploration50', 'exploration_random_policy'] #Compare the methods
 
 mes = 20
 max_exploration_steps_list = [mes]
 max_samples = 1000
 
 
-DF_time = pd.DataFrame(columns= ['exploration50',  'exploration_random_policy'])
+DF_time = pd.DataFrame(columns= ['exploration20', 'exploration50', 'exploration_random_policy'])
 for mod in modes:
         
     #Set the --exploration_steps argument correctly:
     args.exploration_steps = mes
-    args.learning_steps = int(max_samples / mes)
+    if mod == 'exploration20':
+        mode = mod
+        mod = 'exploration'
+        args.exploration_steps = 20
+    elif mod == 'exploration50':
+        mode = mod
+        mod = 'exploration'
+        args.exploration_steps = 50
+    else:
+        mode = mod 
+        args.exploration_steps = 50
+    args.learning_steps = int(max_samples / args.exploration_steps)
     print("LEARNING ITERATIONS:", args.learning_steps)
 
     #Set the correct string for the plots
-    if mod == 'exploration':
-        mode = "exploration" + str(mes)
-    else:
-        mode = 'exploration_random_policy'
 
     DFs[mode] = pd.DataFrame()
 
@@ -128,6 +142,7 @@ for mod in modes:
         pmc.reward = pmc_get_reward(pmc, instantiated_model, args)
         
         # Define learner object 
+        print(mod)
         L = learner(pmc, inst, args.learning_samples_per_step, seed, args, mod)
         samples_collected = 0
         
@@ -191,20 +206,31 @@ df_merged_min.columns = list(DFs.keys())
 
 plt.rcParams.update({'font.size': 22})
 
-value = mes
+print("DF_merged keys:")
+print(df_merged.keys())
+value = 20
+
+print(df_merged)
 learning_steps = int(max_samples / value) + 1
 #this is amount of times a value was added to L.solution_list, so amount of times the sol was calculated. Every calculation took place after collecting value * args.learning_samples_per_step samples. 1 is added to account for the extra solution calculation after all samples were collected.
 
-plt.plot(args.learning_samples_per_step * np.array(range(0, value*learning_steps, value)), [x for x in DF_stats['exploration' + str(value) + '_mean'].to_list() if str(x) != 'nan'], ':', label = 'Exploration ' + str(mes)) 
+#plt.plot(args.learning_samples_per_step * np.array(range(0, value*learning_steps, value)), [x for x in DF_stats['exploration20_mean'].to_list() if str(x) != 'nan'], ':', label = 'Exploration 20')
+plt.plot(args.learning_samples_per_step * np.array(range(0, value*learning_steps, value)), df_merged['exploration20'], ':', label = 'Exploration 20')
 
 #Above line plots the amount of samples collected (per learning iteration, value * learning*steps * samples_per_step samples are collected) against this: Every learning iteration the model outputs multiple approximations of the true value, at different points in the iteration. These values are collected, and the means of them are calculated and plotted. 
 
-plt.fill_between(args.learning_samples_per_step * np.array(range(0, value*learning_steps, value)), list(filter(pd.notna, df_merged_min["exploration" + str(value)].values)), list(filter(pd.notna,  df_merged_max["exploration" + str(value)])), alpha = 0.2)
+plt.fill_between(args.learning_samples_per_step * np.array(range(0, value*learning_steps, value)), list(filter(pd.notna, df_merged_min["exploration20"].values)), list(filter(pd.notna,  df_merged_max["exploration20"])), alpha = 0.2)
+
+value = 50
+learning_steps = int(max_samples / value) + 1
+plt.plot(args.learning_samples_per_step * np.array(range(0, value*learning_steps, value)), list(filter(pd.notna,df_merged['exploration50'])), ':', label = 'Exploration 50')  
+
+plt.fill_between(args.learning_samples_per_step * np.array(range(0, value*learning_steps, value)), list(filter(pd.notna, df_merged_min["exploration50"].values)), list(filter(pd.notna,  df_merged_max["exploration50"])), alpha = 0.2)
 #Above plots shaded areas between min/max over learning iterations
 
 
 #plot the random policy
-plt.plot(args.learning_samples_per_step * np.array(range(0, value*learning_steps, value)), [x for x in DF_stats['exploration_random_policy_mean'].to_list() if str(x) != 'nan'], ':', label = 'Random Policy') 
+plt.plot(args.learning_samples_per_step * np.array(range(0, value*learning_steps, value)), list(filter(pd.notna,df_merged['exploration_random_policy'])), ':', label = 'Random Policy 50') 
 
 plt.fill_between(args.learning_samples_per_step * np.array(range(0, value*learning_steps, value)), list(filter(pd.notna, df_merged_min['exploration_random_policy'].values)), list(filter(pd.notna,  df_merged_max['exploration_random_policy'])), alpha = 0.2)
 

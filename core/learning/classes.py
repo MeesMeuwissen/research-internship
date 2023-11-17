@@ -550,14 +550,12 @@ def make_reward_matrix(derivatives, state_dict, terrain_dict, max_exploration_st
     return reward_matrix
 
 def make_exploration_utils(statespace_file_path, max_exploration_steps):
-    # The mdp can be constructed from only the statespace file. 
+    # The MDP can be constructed from only the statespace file. 
     # This function creates the state dictionary, terrain dictionary as well as  the transition matrix for the mdp.
 
-    #Hier: Per state in de MC willen we een state in de mdp. De transities van die state worden bepaald door de omliggende states in de MC. Tijdens het definieren van de MC wordt er ook een file gemaakt die bijhoudt welke x,y bij welke state_id horen. Het kan zijn dat zelfde x,y bij meerdere state_ids hoort, namelijk 1 state met pakket, 1 zonder pakket. Voor elke combinatie x,y moet er een state in de mdp zijn, met als omliggende states (x-1, y), (x+1, y), ... etc. Het kan handig zijn om de maximale x,y te hebben, dan kan je makkelijker de randen van de grid bepalen. Ook moet ergens de ondergrond van een state gedefinieerd zijn. 
-
-    # Format voor dat bestand: 
-    # x y state_id ondergrond. 
-    # De eerste regel bevat de dimensies van de grid, spatie ertussen: X Y
+    # Format for the statespace file: 
+    # x y state_id terrain. 
+    # The first line contains the dimensions of the grid separated by a space: X Y
 
     f = open(r'{}'.format(statespace_file_path), 'r')
     firstline = f.readline() #Read the first line containing the grid dimensions
@@ -573,7 +571,7 @@ def make_exploration_utils(statespace_file_path, max_exploration_steps):
 
     #The state_dict and terrain_dict are separate since we don't have access to the terrain of a (x,y) pair at the point we assign it a state id. 
 
-    state_counter = 0 #Counter tracks what states we have defined in the mdp. Used when assigning unseen (x,y) a fresh state id.
+    state_counter = 0 #C ounter tracks what states we have defined in the mdp. Used when assigning unseen (x,y) a fresh state id.
     for line in lines:
         # Per line you get x,y, state_id, terrain. If this x,y has not yet been processed, add it to the dictts. 
         
