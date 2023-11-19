@@ -82,7 +82,7 @@ modes = ['exploration20', 'exploration50', 'exploration_random_policy'] #Compare
 
 mes = 20
 max_exploration_steps_list = [mes]
-max_samples = 1000
+max_samples = 100
 
 
 DF_time = pd.DataFrame(columns= ['exploration20', 'exploration50', 'exploration_random_policy'])
@@ -206,8 +206,7 @@ df_merged_min.columns = list(DFs.keys())
 
 plt.rcParams.update({'font.size': 22})
 
-print("DF_merged keys:")
-print(df_merged.keys())
+
 value = 20
 
 print(df_merged)
@@ -241,6 +240,8 @@ ax.set_ylim([0, None])
 
 plt.axhline(y=solution_true, color='gray', linestyle='--')
 
+
+
 #Set visuals
 plt.legend()
 plt.xlabel("Total samples collected")
@@ -258,5 +259,3 @@ DF_stats.to_csv('output/learning_{}_{}.csv'.format(args.instance, dt), sep=';')
 plt.savefig('output/{}_samples_mes_{}_vs_random_{}.pdf'.format(args.learning_samples_per_step * max_samples, mes, dt), bbox_inches='tight')
 
 print('Data exported and plot saved.')
-print(DF_time) #any 1 entry is a single learing iteration 
-print("TRUE SOLUTION:", solution_true)
